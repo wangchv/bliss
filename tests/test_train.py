@@ -1,8 +1,9 @@
 import shutil
 
-from hydra import compose, initialize
+from hydra import initialize
 
 from bliss import train
+from bliss.utils import path_resolved_compose
 
 
 def test_train_run(paths):
@@ -14,6 +15,6 @@ def test_train_run(paths):
     }
     overrides = [f"{k}={v}" for k, v in overrides.items()]
     with initialize(config_path="../config"):
-        cfg = compose("config", overrides=overrides)
+        cfg = path_resolved_compose("config", overrides=overrides)
         train.train(cfg)
     shutil.rmtree(f'{paths["output"]}/unittest')

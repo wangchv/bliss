@@ -5,4 +5,4 @@ _target_: bliss.datasets.simulated.SimulatedDataset
 n_batches: 10
 batch_size: 32
 generate_device: "cuda:0"
-testing_file: null
+testing_file_path: null

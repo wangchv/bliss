@@ -14,7 +14,7 @@ warnings.filterwarnings(
 
 class SimulatedDataset(pl.LightningDataModule, IterableDataset):
     def __init__(
-        self, decoder, n_batches=10, batch_size=32, generate_device="cpu", testing_file=None
+        self, decoder, n_batches=10, batch_size=32, generate_device="cpu", testing_file_path=None
     ):
         super().__init__()
 
@@ -22,7 +22,7 @@ class SimulatedDataset(pl.LightningDataModule, IterableDataset):
         self.batch_size = batch_size
         self.image_decoder = ImageDecoder(**decoder).to(generate_device)
         self.image_decoder.requires_grad_(False)  # freeze decoder weights.
-        self.testing_file = testing_file
+        self.testing_file_path = testing_file_path
 
         # check sleep training will work.
         n_tiles_per_image = self.image_decoder.n_tiles_per_image
@@ -67,8 +67,8 @@ class SimulatedDataset(pl.LightningDataModule, IterableDataset):
     def test_dataloader(self):
         dl = DataLoader(self, batch_size=None, num_workers=0)
 
-        if self.testing_file:
-            test_dataset = BlissDataset(self.testing_file)
+        if self.testing_file_path:
+            test_dataset = BlissDataset(self.testing_file_path)
             dl = DataLoader(test_dataset, batch_size=self.batch_size, num_workers=0)
 
         return dl

@@ -75,9 +75,9 @@ def predict(cfg: DictConfig):
     assert isinstance(bands, list) and len(bands) == 1, "Only 1 band supported"
 
     sdss_obj = sdss.SloanDigitalSkySurvey(**cfg.predict.sdss_kwargs)
-    sleep_net = SleepPhase.load_from_checkpoint(cfg.predict.sleep_checkpoint)
-    galaxy_encoder = GalaxyEncoder.load_from_checkpoint(cfg.predict.galaxy_checkpoint)
-    binary_encoder = BinaryEncoder.load_from_checkpoint(cfg.predict.binary_checkpoint)
+    sleep_net = SleepPhase.load_from_checkpoint(cfg.predict.sleep_checkpoint_path)
+    galaxy_encoder = GalaxyEncoder.load_from_checkpoint(cfg.predict.galaxy_checkpoint_path)
+    binary_encoder = BinaryEncoder.load_from_checkpoint(cfg.predict.binary_checkpoint_path)
 
     # load images from SDSS for prediction.
     image = sdss_obj[0]["image"][0]
@@ -122,4 +122,4 @@ def predict(cfg: DictConfig):
             all_var_params[key] = torch.cat((t1, t2))
 
     if cfg.predict.output_file is not None:
-        torch.save(var_params, cfg.predict.output_file)
+        torch.save(var_params, cfg.predict.output_file_path)

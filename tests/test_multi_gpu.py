@@ -1,8 +1,9 @@
 import pytest
 import torch
-from hydra import compose, initialize
+from hydra import initialize
 
 from bliss import train
+from bliss.utils import path_resolved_compose
 
 
 @pytest.mark.multi_gpu
@@ -20,5 +21,5 @@ def test_train_run(devices):
         }
         overrides = [f"{k}={v}" for k, v in overrides.items()]
         with initialize(config_path="../config"):
-            cfg = compose("config", overrides=overrides)
+            cfg = path_resolved_compose("config", overrides=overrides)
             train.train(cfg)

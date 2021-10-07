@@ -1,8 +1,36 @@
+import os
+
 import torch
+from hydra import compose
+from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.utilities import rank_zero_only
 from torch import nn
 from torch.distributions import Normal
 from torch.nn import functional as F
+
+
+def resolve_path(fn):
+    def wrapper(cfg):
+        _path_rel_to_abs(cfg)
+        return fn(cfg)
+
+    return wrapper
+
+
+def _path_rel_to_abs(config, root_path=None):
+    if root_path is None:
+        root_path = config.paths.root
+    for k, v in config.items():
+        if isinstance(v, DictConfig):
+            _path_rel_to_abs(v, root_path)
+        elif k.endswith("path") and v is not None:
+            config[k] = os.path.join(root_path, v)
+
+
+def path_resolved_compose(*args, **kwargs):
+    cfg = compose(*args, **kwargs)
+    _path_rel_to_abs(cfg)
+    return cfg
 
 
 def empty(*args, **kwargs):

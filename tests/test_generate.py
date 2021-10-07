@@ -1,8 +1,9 @@
 import os
 
-from hydra import compose, initialize
+from hydra import initialize
 
 from bliss import generate
+from bliss.utils import path_resolved_compose
 
 
 def test_generate_run(devices, paths):
@@ -12,7 +13,7 @@ def test_generate_run(devices, paths):
     }
     overrides = [f"{k}={v}" for k, v in overrides.items()]
     with initialize(config_path="../config"):
-        cfg = compose("config", overrides=overrides)
+        cfg = path_resolved_compose("config", overrides=overrides)
         generate.generate(cfg)
 
     os.remove(f"{paths['root']}/example.pt")

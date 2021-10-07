@@ -1,8 +1,12 @@
 import hydra
 
+from bliss.utils import resolve_path
+
 
 @hydra.main(config_path="../config", config_name="config")
+@resolve_path
 def main(cfg):
+
     if cfg.mode == "train":
         from bliss.train import train as task
     elif cfg.mode == "tune":

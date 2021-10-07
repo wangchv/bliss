@@ -3,4 +3,4 @@ decoder: ${model.decoder}
 n_batches: 1
 batch_size: 2
 generate_device: "cpu"
-testing_file: null
+testing_file_path: null

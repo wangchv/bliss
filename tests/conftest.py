@@ -1,8 +1,10 @@
 import pytest
 import pytorch_lightning as pl
 import torch
-from hydra import compose, initialize
+from hydra import initialize
 from hydra.utils import instantiate
+
+from bliss.utils import path_resolved_compose
 
 
 # command line arguments for tests
@@ -29,7 +31,7 @@ def get_cfg(overrides, devices):
     overrides.update({"gpus": devices.gpus})
     overrides = [f"{k}={v}" if v is not None else f"{k}=null" for k, v in overrides.items()]
     with initialize(config_path="../config"):
-        cfg = compose("config", overrides=overrides)
+        cfg = path_resolved_compose("config", overrides=overrides)
     return cfg
 
 
@@ -81,7 +83,7 @@ class ModelSetup:
 @pytest.fixture(scope="session")
 def paths():
     with initialize(config_path="../config"):
-        cfg = compose("config")
+        cfg = path_resolved_compose("config")
     return cfg.paths
 
 

@@ -2,9 +2,10 @@ import shutil
 
 import pytest
 import torch
-from hydra import compose, initialize
+from hydra import initialize
 
 from bliss import tune
+from bliss.utils import path_resolved_compose
 
 
 class TestTune:
@@ -39,6 +40,6 @@ class TestTune:
     @pytest.mark.filterwarnings("ignore:.*Relying on `self.log.*:DeprecationWarning")
     def test_tune_run(self, paths, overrides):
         with initialize(config_path="../config"):
-            cfg = compose("config", overrides=overrides)
+            cfg = path_resolved_compose("config", overrides=overrides)
             tune.tune(cfg)
         shutil.rmtree(f"{paths['root']}/tuning")

@@ -42,9 +42,9 @@ class ImageDecoder(pl.LightningModule):
         prob_galaxy=0.0,
         n_galaxy_params=8,
         gal_slen=53,
-        autoencoder_ckpt=None,
-        latents_file=None,
-        psf_params_file=None,
+        autoencoder_ckpt_path=None,
+        latents_file_path=None,
+        psf_params_file_path=None,
         psf_slen=25,
         background_values=(686.0,),
         loc_min=0.0,
@@ -79,8 +79,8 @@ class ImageDecoder(pl.LightningModule):
         self.prob_galaxy = float(prob_galaxy)
         self.n_galaxy_params = n_galaxy_params
         self.gal_slen = gal_slen
-        self.autoencoder_ckpt = autoencoder_ckpt
-        self.latents_file = latents_file
+        self.autoencoder_ckpt_path = autoencoder_ckpt_path
+        self.latents_file_path = latents_file_path
         # Star Decoder
         self.psf_slen = psf_slen
         self.sdss_bands = tuple(sdss_bands)
@@ -118,22 +118,22 @@ class ImageDecoder(pl.LightningModule):
             self.n_bands,
             self.psf_slen,
             self.sdss_bands,
-            psf_params_file=psf_params_file,
+            psf_params_file_path=psf_params_file_path,
         )
 
         # Submodule for rendering galaxies on a tile
         if prob_galaxy > 0.0:
-            assert self.autoencoder_ckpt is not None and self.latents_file is not None
+            assert self.autoencoder_ckpt_path is not None and self.latents_file_path is not None
             self.galaxy_tile_decoder = GalaxyTileDecoder(
                 self.n_bands,
                 self.tile_slen,
                 self.ptile_slen,
                 self.gal_slen,
                 self.n_galaxy_params,
-                self.autoencoder_ckpt,
+                self.autoencoder_ckpt_path,
             )
             # load dataset of encoded simulated galaxies.
-            self.register_buffer("latents", torch.load(latents_file))
+            self.register_buffer("latents", torch.load(latents_file_path))
         else:
             self.galaxy_tile_decoder = None
             self.register_buffer("latents", torch.zeros(1, 8))
@@ -624,19 +624,19 @@ class Tiler(nn.Module):
 
 
 class StarTileDecoder(nn.Module):
-    def __init__(self, tiler, n_bands, psf_slen, sdss_bands=(2,), psf_params_file=None):
+    def __init__(self, tiler, n_bands, psf_slen, sdss_bands=(2,), psf_params_file_path=None):
         super().__init__()
         self.tiler = tiler
         self.n_bands = n_bands
         self.psf_slen = psf_slen
 
-        ext = Path(psf_params_file).suffix
+        ext = Path(psf_params_file_path).suffix
         if ext == ".npy":
-            psf_params = torch.from_numpy(np.load(psf_params_file))
+            psf_params = torch.from_numpy(np.load(psf_params_file_path))
             psf_params = psf_params[list(range(n_bands))]
         elif ext == ".fits":
             assert len(sdss_bands) == n_bands
-            psf_params = self.get_fit_file_psf_params(psf_params_file, sdss_bands)
+            psf_params = self.get_fit_file_psf_params(psf_params_file_path, sdss_bands)
         else:
             raise NotImplementedError(
                 "Only .npy and .fits extensions are supported for PSF params files."
@@ -756,7 +756,7 @@ class GalaxyTileDecoder(nn.Module):
         ptile_slen,
         gal_slen,
         n_galaxy_params,
-        autoencoder_ckpt,
+        autoencoder_ckpt_path,
     ):
         super().__init__()
         self.n_bands = n_bands
@@ -764,7 +764,7 @@ class GalaxyTileDecoder(nn.Module):
         self.ptile_slen = ptile_slen
 
         # load decoder after loading autoencoder from checkpoint.
-        autoencoder = galaxy_net.OneCenteredGalaxyAE.load_from_checkpoint(autoencoder_ckpt)
+        autoencoder = galaxy_net.OneCenteredGalaxyAE.load_from_checkpoint(autoencoder_ckpt_path)
         assert gal_slen == autoencoder.hparams.slen
         assert n_galaxy_params == autoencoder.hparams.latent_dim
         dec = autoencoder.dec

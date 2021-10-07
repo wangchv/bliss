@@ -161,7 +161,7 @@ class SloanDigitalSkySurvey(Dataset):
     # pylint: disable=dangerous-default-value
     def __init__(
         self,
-        sdss_dir="data/sdss",
+        sdss_dir_path="data/sdss",
         run=3900,
         camcol=6,
         fields=(269,),
@@ -173,7 +173,7 @@ class SloanDigitalSkySurvey(Dataset):
     ):
         super().__init__()
 
-        self.sdss_path = pathlib.Path(sdss_dir)
+        self.sdss_path = pathlib.Path(sdss_dir_path)
         self.rcfgcs = []
         self.bands = bands
         self.stampsize = stampsize

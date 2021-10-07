@@ -1,6 +1,6 @@
 # image and sdss parameters
 sdss_kwargs:
-  sdss_dir: data/sdss
+  sdss_dir_path: data/sdss
   run: 94
   camcol: 1
   fields:
@@ -13,11 +13,11 @@ bands:
   - 2
 
 # i/o parameters
-sleep_checkpoint: models/sdss_sleep.ckpt
-galaxy_checkpoint: models/sdss_galaxy_encoder.ckpt
-binary_checkpoint: models/sdss_binary.ckpt
+sleep_checkpoint_path: models/sdss_sleep.ckpt
+galaxy_checkpoint_path: models/sdss_galaxy_encoder.ckpt
+binary_checkpoint_path: models/sdss_binary.ckpt
 device: "cuda:0"
-output_file: null
+output_file_path: null
 
 # coverage for tests
 testing: False
