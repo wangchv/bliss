@@ -184,5 +184,5 @@ class TestSourceEncoder:
             mean_detections=0.48,
             max_detections=max_detections,
         ).to(device)
-        var_params = star_encoder.encode(images, background_tensor)
-        star_encoder.sample(var_params, n_samples)
+        var_params, source_params, count_params = star_encoder.encode(images, background_tensor)
+        star_encoder.sample(var_params, source_params, count_params, n_samples)

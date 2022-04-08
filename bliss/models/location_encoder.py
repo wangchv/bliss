@@ -88,16 +88,17 @@ class LocationEncoder(nn.Module):
 
         # the number of total detections for all source counts: 1 + 2 + ... + self.max_detections
         # NOTE: the numerator here is always even
-        n_total_detections = self.max_detections * (self.max_detections + 1) // 2
+        self.n_total_detections = self.max_detections * (self.max_detections + 1) // 2
 
         # most of our parameters describe individual detections
-        n_source_params = n_total_detections * self.n_params_per_source
+        self.n_source_params = self.n_total_detections * self.n_params_per_source
 
-        # we also have parameters indicating the distribution of the number of detections
-        count_simplex_dim = 1 + self.max_detections
+        # we also have parameters indicating a distribution (on a simplex)
+        # of the number of detections
+        self.n_count_params = 1 + self.max_detections
 
         # the total number of distributional parameters per tile
-        self.dim_out_all = n_source_params + count_simplex_dim
+        self.dim_out_all = self.n_source_params + self.n_count_params
 
         dim_enc_conv_out = ((self.ptile_slen + 1) // 2 + 1) // 2
 
@@ -139,7 +140,7 @@ class LocationEncoder(nn.Module):
         log_image_ptiles_flat = rearrange(image_ptiles, "b nth ntw c h w -> (b nth ntw) c h w")
         var_params_conv = self.enc_conv(log_image_ptiles_flat)
         var_params_flat = self.enc_final(var_params_conv)
-        return rearrange(
+        var_params = rearrange(
             var_params_flat,
             "(b nth ntw) d -> b nth ntw d",
             b=image_ptiles.shape[0],  # number of bands
@@ -147,9 +148,23 @@ class LocationEncoder(nn.Module):
             ntw=image_ptiles.shape[2],  # number of vertical tiles
             d=self.dim_out_all,  # number of dist params per tile
         )
+        source_params_flatish = var_params[:, :, :, :self.n_source_params]
+        source_params = rearrange(
+            source_params_flatish,
+            "b nth ntw (td pps) -> b nth ntw td pps",
+            td = self.n_total_detections,
+            pps = self.n_params_per_source,
+        )
+        count_params = var_params[:, :, :, self.n_source_params:]
+        return var_params, source_params, count_params
 
     def sample(
-        self, var_params: Tensor, n_samples: int, eval_mean_detections: Optional[float] = None
+        self,
+        var_params: Tensor,
+        source_params,
+        count_params,
+        n_samples: int, 
+        eval_mean_detections: Optional[float] = None
     ) -> Dict[str, Tensor]:
         """Sample from encoded variational distribution.
 
@@ -166,19 +181,17 @@ class LocationEncoder(nn.Module):
             A dictionary of tensors with shape `n_samples * n_ptiles * max_sources* ...`.
             Consists of `"n_sources", "locs", "log_fluxes", and "fluxes"`.
         """
-        var_params_flat = rearrange(var_params, "b nth ntw d -> (b nth ntw) d")
-        log_probs_n_sources_per_tile = self.get_n_source_log_prob(
-            var_params_flat, eval_mean_detections=eval_mean_detections
-        )
-
-        # sample number of sources.
-        # tile_n_sources shape = (n_samples x n_ptiles)
-        # tile_is_on_array shape = (n_samples x n_ptiles x max_detections x 1)
-        probs_n_sources_per_tile = torch.exp(log_probs_n_sources_per_tile)
-        tile_n_sources = Categorical(probs=probs_n_sources_per_tile).sample((n_samples,)).squeeze()
+        probs_n_sources_per_tile = count_params.softmax(dim=3)
+        tile_n_sources = Categorical(probs=probs_n_sources_per_tile).sample((n_samples,))
         tile_n_sources = tile_n_sources.view(n_samples, -1)
+
         tile_is_on_array = get_is_on_from_n_sources(tile_n_sources, self.max_detections)
-        tile_is_on_array = tile_is_on_array.unsqueeze(-1).float()
+        tile_is_on_array = tile_is_on_array.unsqueeze(-1)
+
+        # I need to handle each number of detections seperately, e.g., with a for loop over self.max_detections
+        # and operate on tile_is_on_array, and use index_select or gather
+
+        var_params_flat = rearrange(var_params, "b nth ntw d -> (b nth ntw) d")
 
         # get var_params conditioned on n_sources
         pred = self.encode_for_n_sources(var_params_flat, tile_n_sources)
