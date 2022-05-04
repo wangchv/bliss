@@ -24,7 +24,7 @@ from bliss.inference import SDSSFrame, SimulatedFrame, reconstruct_scene_at_coor
 from bliss.models.decoder import ImageDecoder
 from bliss.models.galaxy_net import OneCenteredGalaxyAE
 
-pl.seed_everything(42)
+pl.seed_everything(40)
 
 
 CB_color_cycle = [
@@ -181,6 +181,7 @@ class AEReconstructionFigures(BlissFigures):
         recon_means = torch.tensor([])
         background = image_data["background"].reshape(1, 1, 53, 53).to(device)
         noiseless_images = image_data["noiseless"].numpy()  # no background or noise.
+        snr = image_data["snr"].reshape(-1).numpy()
 
         print("INFO: Computing reconstructions from saved autoencoder model...")
         n_images = images.shape[0]
@@ -208,15 +209,15 @@ class AEReconstructionFigures(BlissFigures):
         psf_image = psf.drawImage(nx=53, ny=53, scale=sdss_pixel_scale).array
 
         recon_no_background = recon_means.numpy() - background.cpu().numpy()
-        # a small percentage of low magnitude objects end up predicted with negative flux.
-        good_bool = recon_no_background.sum(axis=(1, 2, 3)) > 0
+        assert np.all(recon_no_background.sum(axis=(1, 2, 3)) > 0)
         measurements = reporting.get_single_galaxy_measurements(
             slen=53,
-            true_images=noiseless_images[good_bool],
-            recon_images=recon_no_background[good_bool],
+            true_images=noiseless_images,
+            recon_images=recon_no_background,
             psf_image=psf_image.reshape(-1, 53, 53),
             pixel_scale=sdss_pixel_scale,
         )
+        measurements["snr"] = snr
         return {
             "random": (images[rand_indices], recon_means[rand_indices], residuals[rand_indices]),
             "worst": (images[worst_indices], recon_means[worst_indices], residuals[worst_indices]),
@@ -378,45 +379,49 @@ class AEReconstructionFigures(BlissFigures):
         fig, axes = plt.subplots(1, 3, figsize=(21, 9))
         ax1, ax2, ax3 = axes.flatten()
         set_rc_params(fontsize=24)
+        snr = meas["snr"]
+        xticks = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+        xlims = (0, 3)
+        xlabel = r"$\log_{10} \text{SNR}$"
 
         # fluxes / magnitudes
         true_mags, recon_mags = meas["true_mags"], meas["recon_mags"]
-        x, y = true_mags, recon_mags - true_mags
+        x, y = np.log10(snr), recon_mags - true_mags
         self.scatter_bin_plot(
             ax1,
             x,
             y,
-            xlims=(x.min(), x.max()),
-            delta=0.25,
-            xlabel=r"\rm $m^{\rm true}$",
+            delta=0.2,
+            xlims=xlims,
+            xlabel=xlabel,
             ylabel=r"\rm $m^{\rm recon} - m^{\rm true}$",
-            xticks=[16, 17, 18, 19, 20, 21, 22, 23],
+            xticks=xticks,
         )
 
         # ellipticities
         true_ellip1, recon_ellip1 = meas["true_ellip"][:, 0], meas["recon_ellip"][:, 0]
-        x, y = true_ellip1, recon_ellip1 - true_ellip1
+        x, y = np.log10(snr), recon_ellip1 - true_ellip1
         self.scatter_bin_plot(
             ax2,
             x,
             y,
-            xlims=(-0.85, 0.85),
             delta=0.2,
-            xticks=[-1.0, -0.5, 0.0, 0.5, 1.0],
-            xlabel=r"$g_{1}^{\rm true}$",
+            xlims=xlims,
+            xticks=xticks,
+            xlabel=xlabel,
             ylabel=r"$g_{1}^{\rm recon} - g_{1}^{\rm true}$",
         )
 
         true_ellip2, recon_ellip2 = meas["true_ellip"][:, 1], meas["recon_ellip"][:, 1]
-        x, y = true_ellip2, recon_ellip2 - true_ellip2
+        x, y = np.log10(snr), recon_ellip2 - true_ellip2
         self.scatter_bin_plot(
             ax3,
             x,
             y,
-            xlims=(-0.85, 0.85),
             delta=0.2,
-            xticks=[-1.0, -0.5, 0.0, 0.5, 1.0],
-            xlabel=r"$g_{2}^{\rm true}$",
+            xlims=xlims,
+            xticks=xticks,
+            xlabel=xlabel,
             ylabel=r"$g_{2}^{\rm recon} - g_{2}^{\rm true}$",
         )
 
@@ -517,7 +522,7 @@ class DetectionClassificationFigures(BlissFigures):
             slen=slen,
             device=device,
         )
-        est_params = tile_est_params.to_full_params()
+        est_params = tile_est_params.cpu().to_full_params()
         est_params["fluxes"] = (
             est_params["galaxy_bools"] * est_params["galaxy_fluxes"]
             + est_params["star_bools"] * est_params["fluxes"]
@@ -708,14 +713,15 @@ class SDSSReconstructionFigures(BlissFigures):
         self.scenes = scenes
         super().__init__(figdir, cachedir, overwrite=overwrite, img_format=img_format)
 
-    def compute_data(self, frame: Union[SDSSFrame, SimulatedFrame], encoder, decoder):
+    def compute_data(self, frame: Union[SDSSFrame, SimulatedFrame], encoder: Encoder, decoder):
 
+        tile_slen = encoder.location_encoder.tile_slen
         device = encoder.device
         data = {}
 
         for figname, scene_coords in self.scenes.items():
             h, w, scene_size = scene_coords["h"], scene_coords["w"], scene_coords["size"]
-            assert h % encoder.tile_slen == 0 and w % encoder.tile_slen == 0
+            assert h % tile_slen == 0 and w % tile_slen == 0
             assert scene_size <= 300, "Scene too large, change slen."
             h_end = h + scene_size
             w_end = w + scene_size
@@ -734,6 +740,7 @@ class SDSSReconstructionFigures(BlissFigures):
             )
             resid = (true - recon) / recon.sqrt()
 
+            tile_map_recon = tile_map_recon.cpu()
             recon_map = tile_map_recon.to_full_params()
 
             # get BLISS probability of n_sources in coadd locations.
